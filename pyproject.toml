@@ -1,0 +1,62 @@
+[project]
+name = "prediction-mm"
+version = "0.1.0"
+description = "Market making system for Kalshi prediction markets"
+requires-python = ">=3.11"
+dependencies = [
+    "kalshi-python-async>=2.1.1",
+    "websockets>=12.0",
+    "cryptography>=41.0",
+    "python-dotenv>=1.0",
+    "structlog>=24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+    "mypy>=1.8",
+    "ruff>=0.2",
+]
+playground = [
+    "jupyter>=1.0",
+    "ipykernel>=6.0",
+    "pandas>=2.0",
+    "matplotlib>=3.8",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src/prediction_mm"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
