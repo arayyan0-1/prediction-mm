@@ -25,20 +25,29 @@ playground = [
     "pandas>=2.0",
     "matplotlib>=3.8",
 ]
+dashboard = [
+    "dash>=2.14",
+    "dash-extensions>=1.0",
+    "plotly>=5.18",
+    "httpx>=0.25",
+    "pydantic>=2.0",
+    "sortedcontainers>=2.4",
+]
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["prediction_mm*", "dashboard*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["src/prediction_mm"]
+source = ["src/prediction_mm", "dashboard"]
 branch = true
 
 [tool.coverage.report]

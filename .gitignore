@@ -1,6 +1,8 @@
 # Environment and secrets
 .env
 *.pem
+api-prod-key/
+api-demo-key/
 
 # macOS
 .DS_Store

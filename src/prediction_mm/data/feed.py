@@ -91,7 +91,7 @@ class KalshiFeed:
         try:
             self._ws = await websockets.connect(
                 self.ws_url,
-                extra_headers=headers,
+                additional_headers=headers,
             )
             self._reconnect_delay = INITIAL_RECONNECT_DELAY
             self._consecutive_failures = 0
