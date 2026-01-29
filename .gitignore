@@ -41,6 +41,7 @@ env/
 *.swo
 *.code-workspace
 .claude/
+.prompts/
 notes/
 
 # Testing

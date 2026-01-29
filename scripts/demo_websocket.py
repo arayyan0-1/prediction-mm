@@ -95,7 +95,6 @@ async def main_async() -> int:
     if "demo" not in config.host:
         logger.error("refusing_production", host=config.host)
         print("ERROR: This demo only runs against demo environment.")
-        print("Set KALSHI_ENV=demo in your .env file")
         return 1
 
     # Find an active market

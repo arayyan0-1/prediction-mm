@@ -1,18 +1,12 @@
 """Configuration management for Kalshi API client.
 
-This module handles loading configuration from environment variables,
-including API credentials and environment selection (demo vs production).
-
-Credentials can be auto-discovered from api-demo-key/ and api-prod-key/
-directories, or explicitly set via environment variables.
+Credentials are auto-discovered from api-demo-key/ and api-prod-key/
+directories in the project root.
 """
 
-import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-
-from dotenv import load_dotenv
 
 
 class Environment(Enum):
@@ -28,7 +22,7 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Config:
-    """Application configuration loaded from environment variables.
+    """Application configuration.
 
     Attributes:
         api_key_id: Kalshi API key ID for authentication.
@@ -42,33 +36,21 @@ class Config:
 
     @property
     def base_url(self) -> str:
-        """Get REST API base URL for the selected environment.
-
-        Returns:
-            Base URL string for the Kalshi REST API.
-        """
+        """Get REST API base URL for the selected environment."""
         if self.environment == Environment.DEMO:
             return "https://demo-api.kalshi.co/trade-api/v2"
         return "https://api.elections.kalshi.com/trade-api/v2"
 
     @property
     def ws_url(self) -> str:
-        """Get WebSocket URL for the selected environment.
-
-        Returns:
-            WebSocket URL string for the Kalshi WebSocket API.
-        """
+        """Get WebSocket URL for the selected environment."""
         if self.environment == Environment.DEMO:
             return "wss://demo-api.kalshi.co/trade-api/ws/v2"
         return "wss://api.elections.kalshi.com/trade-api/ws/v2"
 
     @property
     def host(self) -> str:
-        """Get host URL for SDK configuration.
-
-        Returns:
-            Host URL for the Kalshi SDK.
-        """
+        """Get host URL for SDK configuration."""
         if self.environment == Environment.DEMO:
             return "https://demo-api.kalshi.co/trade-api/v2"
         return "https://api.elections.kalshi.com/trade-api/v2"
@@ -175,61 +157,18 @@ def load_config_for_env(environment: Environment) -> Config:
     )
 
 
-def load_config(
-    env_file: Path | None = None, env_override: str | None = None
-) -> Config:
-    """Load configuration from environment variables.
-
-    Loads from .env file if present, then validates all required variables.
-    Credentials are auto-discovered from api-{env}-key/ directories unless
-    explicitly set via KALSHI_API_KEY_ID and KALSHI_PRIVATE_KEY_PATH.
+def load_config(prod: bool = False) -> Config:
+    """Load configuration using credential auto-discovery.
 
     Args:
-        env_file: Optional path to .env file. If None, searches default locations.
-        env_override: Optional environment override (e.g. from CLI --env flag).
-            Takes precedence over KALSHI_ENV environment variable.
+        prod: If True, use production credentials (api-prod-key/).
+            Default is demo (api-demo-key/).
 
     Returns:
         Validated Config object.
 
     Raises:
-        ConfigError: If required variables are missing, invalid, or files don't exist.
+        ConfigError: If credentials cannot be discovered.
     """
-    if env_file:
-        load_dotenv(env_file)
-    else:
-        load_dotenv()
-
-    # Determine environment (CLI override > env var > default)
-    env_str = (env_override or os.getenv("KALSHI_ENV", "demo")).lower()
-    if env_str == "demo":
-        environment = Environment.DEMO
-    elif env_str == "prod":
-        environment = Environment.PROD
-    else:
-        raise ConfigError(
-            f"Invalid KALSHI_ENV: {env_str!r}\n"
-            "Must be 'demo' or 'prod'."
-        )
-
-    # Determine credentials (explicit env vars > auto-discovery)
-    api_key_id = os.getenv("KALSHI_API_KEY_ID")
-    private_key_path_str = os.getenv("KALSHI_PRIVATE_KEY_PATH")
-
-    if api_key_id and private_key_path_str:
-        # Explicit credentials take precedence (backward compat)
-        private_key_path = Path(private_key_path_str)
-        if not private_key_path.exists():
-            raise ConfigError(
-                f"Private key file not found: {private_key_path}\n"
-                "Download your private key from Kalshi and update KALSHI_PRIVATE_KEY_PATH."
-            )
-    else:
-        # Auto-discover from credential directories
-        api_key_id, private_key_path = discover_credentials(environment)
-
-    return Config(
-        api_key_id=api_key_id,
-        private_key_path=private_key_path,
-        environment=environment,
-    )
+    environment = Environment.PROD if prod else Environment.DEMO
+    return load_config_for_env(environment)

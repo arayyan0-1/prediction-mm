@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify Kalshi API connectivity."""
 
+import argparse
 import asyncio
 import sys
 import structlog
@@ -11,8 +12,19 @@ from prediction_mm.client import create_apis, RateLimiter, generate_request_id
 logger = structlog.get_logger()
 
 
-async def main_async() -> int:
-    config = load_config()
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Verify Kalshi API connectivity")
+    parser.add_argument(
+        "--prod",
+        action="store_true",
+        help="Use production environment (api-prod-key/). Default is demo.",
+    )
+    return parser.parse_args()
+
+
+async def main_async(prod: bool = False) -> int:
+    config = load_config(prod=prod)
     apis = await create_apis(config.host, config.api_key_id, str(config.private_key_path))
     rate_limiter = RateLimiter()
 
@@ -109,7 +121,8 @@ async def main_async() -> int:
 
 def main() -> int:
     """Synchronous entry point that runs the async main."""
-    return asyncio.run(main_async())
+    args = parse_args()
+    return asyncio.run(main_async(prod=args.prod))
 
 
 if __name__ == "__main__":

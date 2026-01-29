@@ -11,6 +11,7 @@ This is primarily used for WebSocket authentication, as REST API
 authentication is handled automatically by the Kalshi SDK.
 """
 
+import argparse
 import sys
 import structlog
 from pathlib import Path
@@ -21,14 +22,25 @@ from prediction_mm.auth import create_auth, KalshiAuth, AuthError
 logger = structlog.get_logger()
 
 
-def demo_auth_basics():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Demo RSA-PSS authentication signing")
+    parser.add_argument(
+        "--prod",
+        action="store_true",
+        help="Use production environment (api-prod-key/). Default is demo.",
+    )
+    return parser.parse_args()
+
+
+def demo_auth_basics(prod: bool = False):
     """Demonstrate basic auth operations."""
     print(f"\n{'=' * 80}")
     print("RSA-PSS Authentication Demo")
     print(f"{'=' * 80}\n")
 
     # Load configuration
-    config = load_config()
+    config = load_config(prod=prod)
     print(f"API Key ID: {config.api_key_id}")
     print(f"Private Key Path: {config.private_key_path}")
     print(f"Environment: {config.environment.value}\n")
@@ -144,8 +156,9 @@ def demo_error_handling():
 
 def main() -> int:
     """Main entry point."""
+    args = parse_args()
     try:
-        result = demo_auth_basics()
+        result = demo_auth_basics(prod=args.prod)
         if result != 0:
             return result
 

@@ -18,6 +18,7 @@ Examples:
     python scripts/fetch_entity.py INXM-20250101-Y        # Fetch market
 """
 
+import argparse
 import asyncio
 import sys
 import structlog
@@ -27,6 +28,20 @@ from prediction_mm.client import create_apis, RateLimiter
 from prediction_mm.pagination import paginate_all
 
 logger = structlog.get_logger()
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Fetch information for Kalshi series, events, or markets"
+    )
+    parser.add_argument("ticker", help="The ticker to fetch (series, event, or market)")
+    parser.add_argument(
+        "--prod",
+        action="store_true",
+        help="Use production environment (api-prod-key/). Default is demo.",
+    )
+    return parser.parse_args()
 
 
 class EntityClassifier:
@@ -300,21 +315,10 @@ async def fetch_market_info(client, ticker: str, rate_limiter: RateLimiter) -> N
         print(f"   ⚠️  Could not fetch orderbook: {e}")
 
 
-async def main_async() -> int:
+async def main_async(ticker: str, prod: bool = False) -> int:
     """Main async entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python scripts/fetch_entity.py <ticker>")
-        print()
-        print("Examples:")
-        print("  python scripts/fetch_entity.py INX                    # Fetch series")
-        print("  python scripts/fetch_entity.py INXM-20250101          # Fetch event")
-        print("  python scripts/fetch_entity.py INXM-20250101-Y        # Fetch market")
-        return 1
-
-    ticker = sys.argv[1].strip()
-
     # Load config and create API clients
-    config = load_config()
+    config = load_config(prod=prod)
     apis = await create_apis(config.host, config.api_key_id, str(config.private_key_path))
     rate_limiter = RateLimiter()
 
@@ -355,7 +359,8 @@ async def main_async() -> int:
 
 def main() -> int:
     """Synchronous entry point that runs the async main."""
-    return asyncio.run(main_async())
+    args = parse_args()
+    return asyncio.run(main_async(ticker=args.ticker, prod=args.prod))
 
 
 if __name__ == "__main__":

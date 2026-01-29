@@ -1,6 +1,5 @@
 """Tests for configuration management."""
 
-import os
 import pytest
 from pathlib import Path
 
@@ -177,65 +176,49 @@ class TestDiscoverCredentials:
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    def test_loads_from_env_vars(self, tmp_private_key: Path, monkeypatch):
-        """Config loads from environment variables."""
-        monkeypatch.setenv("KALSHI_API_KEY_ID", "env-key-id")
-        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", str(tmp_private_key))
-        monkeypatch.setenv("KALSHI_ENV", "demo")
+    def test_defaults_to_demo(self, tmp_path: Path, tmp_private_key: Path, monkeypatch):
+        """Default environment is demo (prod=False)."""
+        cred_dir = tmp_path / "api-demo-key"
+        cred_dir.mkdir()
+        (cred_dir / "api-key-id.txt").write_text("demo-key")
+        (cred_dir / "key.pem").write_bytes(tmp_private_key.read_bytes())
+
+        monkeypatch.setattr(
+            "prediction_mm.config._find_project_root",
+            lambda: tmp_path,
+        )
 
         config = load_config()
 
-        assert config.api_key_id == "env-key-id"
-        assert config.private_key_path == tmp_private_key
+        assert config.api_key_id == "demo-key"
         assert config.environment == Environment.DEMO
 
-    def test_prod_environment(self, tmp_private_key: Path, monkeypatch):
-        """KALSHI_ENV=prod sets prod environment."""
-        monkeypatch.setenv("KALSHI_API_KEY_ID", "key")
-        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", str(tmp_private_key))
-        monkeypatch.setenv("KALSHI_ENV", "prod")
+    def test_prod_flag_uses_prod(self, tmp_path: Path, tmp_private_key: Path, monkeypatch):
+        """prod=True loads production credentials."""
+        cred_dir = tmp_path / "api-prod-key"
+        cred_dir.mkdir()
+        (cred_dir / "api-key-id.txt").write_text("prod-key")
+        (cred_dir / "key.pem").write_bytes(tmp_private_key.read_bytes())
 
-        config = load_config()
+        monkeypatch.setattr(
+            "prediction_mm.config._find_project_root",
+            lambda: tmp_path,
+        )
 
+        config = load_config(prod=True)
+
+        assert config.api_key_id == "prod-key"
         assert config.environment == Environment.PROD
 
-    def test_env_override_takes_precedence(self, tmp_private_key: Path, monkeypatch):
-        """env_override parameter takes precedence over KALSHI_ENV."""
-        monkeypatch.setenv("KALSHI_API_KEY_ID", "key")
-        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", str(tmp_private_key))
-        monkeypatch.setenv("KALSHI_ENV", "demo")
+    def test_missing_credentials_raises(self, tmp_path: Path, monkeypatch):
+        """Missing credential directory raises ConfigError."""
+        monkeypatch.setattr(
+            "prediction_mm.config._find_project_root",
+            lambda: tmp_path,
+        )
 
-        config = load_config(env_override="prod")
-
-        assert config.environment == Environment.PROD
-
-    def test_invalid_env_raises(self, tmp_private_key: Path, monkeypatch):
-        """Invalid KALSHI_ENV raises ConfigError."""
-        monkeypatch.setenv("KALSHI_API_KEY_ID", "key")
-        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", str(tmp_private_key))
-        monkeypatch.setenv("KALSHI_ENV", "invalid")
-
-        with pytest.raises(ConfigError, match="Invalid KALSHI_ENV"):
+        with pytest.raises(ConfigError, match="Credential directory not found"):
             load_config()
-
-    def test_missing_key_file_raises(self, monkeypatch):
-        """Missing private key file raises ConfigError."""
-        monkeypatch.setenv("KALSHI_API_KEY_ID", "key")
-        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", "/nonexistent/path.pem")
-        monkeypatch.setenv("KALSHI_ENV", "demo")
-
-        with pytest.raises(ConfigError, match="Private key file not found"):
-            load_config()
-
-    def test_defaults_to_demo(self, tmp_private_key: Path, monkeypatch):
-        """Default environment is demo when KALSHI_ENV not set."""
-        monkeypatch.setenv("KALSHI_API_KEY_ID", "key")
-        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", str(tmp_private_key))
-        monkeypatch.delenv("KALSHI_ENV", raising=False)
-
-        config = load_config()
-
-        assert config.environment == Environment.DEMO
 
 
 class TestLoadConfigForEnv:

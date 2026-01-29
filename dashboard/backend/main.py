@@ -60,10 +60,9 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Dashboard backend server")
     parser.add_argument(
-        "--env",
-        choices=["demo", "prod"],
-        default=None,
-        help="Environment to connect to (demo or prod). Overrides KALSHI_ENV.",
+        "--prod",
+        action="store_true",
+        help="Use production environment (api-prod-key/). Default is demo.",
     )
     return parser.parse_args()
 
@@ -503,7 +502,7 @@ async def main():
 
     args = parse_args()
 
-    config = load_config(env_override=args.env)
+    config = load_config(prod=args.prod)
     auth = create_auth(config.api_key_id, config.private_key_path)
     server_state = ServerState(config, auth)
 

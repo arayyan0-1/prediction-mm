@@ -1,31 +1,77 @@
 # prediction-mm
 
-Async Python client for Kalshi prediction markets.
+Market making system for Kalshi prediction markets. Includes a core async Python library and a real-time orderbook dashboard.
 
 ## Install
 
 ```bash
-pip install -e .
-```
-
-Development tools:
-```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,dashboard]"
 ```
 
 ## Setup
 
-Copy `.env.example` to `.env` and fill in your Kalshi API credentials:
+### Credentials
+
+Place your Kalshi API credentials in the project root:
 
 ```
-KALSHI_API_KEY_ID=your-key-id
-KALSHI_PRIVATE_KEY_PATH=./kalshi_private_key.pem
-KALSHI_ENV=demo
+api-demo-key/           # Demo environment
+  api-key-id.txt        # Your demo API key ID
+  *.pem                 # Your demo RSA private key
+
+api-prod-key/           # Production environment
+  api-key-id.txt        # Your prod API key ID
+  *.pem                 # Your prod RSA private key
 ```
 
 Get credentials from your Kalshi account settings.
 
-## Basic Usage
+## Dashboard
+
+Real-time orderbook visualization with depth charts, price history, and live updates via WebSocket.
+
+### Running
+
+Start the backend server and frontend in two terminals:
+
+```bash
+# Terminal 1: Backend (bridges Kalshi WS feed to local clients)
+python -m dashboard.backend.main
+
+# Terminal 2: Frontend (Dash app at http://localhost:8050)
+python -m dashboard.frontend.app
+```
+
+Use `--prod` to connect to production:
+```bash
+python -m dashboard.backend.main --prod
+```
+
+### Features
+
+- **Depth chart** -- Cumulative bid/ask depth with YES/NO toggle
+- **Price time series** -- Rolling last-trade price with bid/ask bands
+- **Top-of-book display** -- Best bid/ask with spread for both sides
+- **Last trade price** -- Real-time YES and NO last price
+- **Market switching** -- Subscribe to any market ticker
+- **Environment switching** -- Switch between demo and prod at runtime
+
+### Architecture
+
+```
+Browser (Dash)  <──WebSocket──>  Backend Server  <──WebSocket──>  Kalshi API
+  :8050                            :8765                          (+ REST snapshots)
+```
+
+The backend connects to Kalshi's WebSocket feed for orderbook deltas and ticker updates, fetches REST snapshots on subscribe, and maintains an in-memory `OrderbookState`. It broadcasts state updates to browser clients over a local WebSocket.
+
+The frontend renders with Plotly/Dash, using `dcc.Store` for state and a 1-second `dcc.Interval` for throttled chart rendering.
+
+## Core Library
+
+Async Python client for the Kalshi API, used by the dashboard and available for custom strategies.
+
+### Basic Usage
 
 ```python
 import asyncio
@@ -46,34 +92,14 @@ async def main():
             status="open"
         )
         for m in markets:
-            print(f"{m.ticker}: {m.yes_bid}¢/{m.yes_ask}¢")
+            print(f"{m.ticker}: {m.yes_bid}/{m.yes_ask}")
     finally:
         await apis.client.close()
 
 asyncio.run(main())
 ```
 
-## Pagination
-
-Generator (memory efficient):
-```python
-async for page in paginate(apis.client.get_markets, "markets", status="open"):
-    await rate_limiter.wait()
-    for market in page:
-        print(market.ticker)
-```
-
-Fetch all (convenient):
-```python
-markets = await paginate_all(
-    apis.client.get_markets,
-    "markets",
-    rate_limiter=rate_limiter,
-    status="open"
-)
-```
-
-## WebSocket
+### WebSocket Feed
 
 ```python
 from prediction_mm.data import KalshiFeed
@@ -92,69 +118,85 @@ await feed.subscribe_orderbook("MARKET-TICKER")
 await feed.run()
 ```
 
-## Scripts
+### Pagination
 
-Run these to test functionality:
+```python
+# Generator (memory efficient)
+async for page in paginate(apis.client.get_markets, "markets", status="open"):
+    await rate_limiter.wait()
+    for market in page:
+        print(market.ticker)
 
-```bash
-python scripts/check_connection.py          # Verify API access
-python scripts/demo_trade.py                # Place/cancel order (demo only)
-python scripts/fetch_entity.py <ticker>     # Get series/event/market data
-python scripts/demo_websocket.py            # Live orderbook feed
-python scripts/demo_auth.py                 # Auth internals
-python scripts/test_pagination.py           # Pagination test
+# Fetch all
+markets = await paginate_all(apis.client.get_markets, "markets", rate_limiter=rate_limiter, status="open")
 ```
 
-Entity fetching examples:
-```bash
-python scripts/fetch_entity.py KXQUICKSETTLE                    # Series (0 hyphens)
-python scripts/fetch_entity.py KXQUICKSETTLE-26JAN08H0850       # Event (1 hyphen)
-python scripts/fetch_entity.py KXQUICKSETTLE-26JAN08H0850-3     # Market (2 hyphens)
-```
-
-## Testing
-
-```bash
-pytest                                      # Run tests
-pytest --cov=src/prediction_mm             # With coverage
-```
-
-## Rate Limiting
+### Rate Limiting
 
 ```python
 rate_limiter = RateLimiter(requests_per_second=20.0)
 await rate_limiter.wait()  # Call before each request
 ```
 
-## SDK Patches
+## Scripts
 
-This library patches `kalshi_python_async` to fix:
+All scripts default to demo environment. Use `--prod` for production.
 
-1. Missing status values - SDK defines 5, API returns 8 (initialized, inactive, active, closed, determined, disputed, amended, finalized)
-2. Required vs optional fields - Some SDK fields marked required are actually optional
-3. Orderbook types - API returns integers/None, SDK expects strings/lists
+```bash
+python scripts/check_connection.py          # Verify API access
+python scripts/demo_trade.py                # Place/cancel order (demo only)
+python scripts/fetch_entity.py <ticker>     # Get series/event/market data
+python scripts/demo_websocket.py            # Live orderbook feed (demo only)
+python scripts/demo_auth.py                 # Auth internals
+python scripts/test_pagination.py           # Pagination test
+```
 
-Patches apply automatically on import.
+## Testing
+
+```bash
+pytest                        # Run all tests
+pytest --cov                  # With coverage (src + dashboard)
+pytest tests/test_orderbook.py  # Run specific test file
+```
 
 ## Project Structure
 
 ```
-src/prediction_mm/
-  __init__.py       - Package exports
-  auth.py           - RSA-PSS authentication
-  client.py         - API client wrapper
-  config.py         - Configuration management
-  models.py         - SDK model patches
-  pagination.py     - Pagination utilities
-  data/feed.py      - WebSocket feed handler
+src/prediction_mm/        Core library
+  auth.py                   RSA-PSS authentication
+  client.py                 API client wrapper
+  config.py                 Configuration and credential discovery
+  models.py                 SDK model patches
+  pagination.py             Pagination utilities
+  data/feed.py              WebSocket feed handler
 
-scripts/            - Demo scripts
-tests/              - Unit tests
+dashboard/                Real-time orderbook dashboard
+  backend/
+    main.py                 WebSocket bridge server
+    orderbook.py            Orderbook state with delta application
+    kalshi_rest.py          REST client for snapshots
+  frontend/
+    app.py                  Dash/Plotly visualization
+
+scripts/                  Demo and utility scripts
+tests/                    Unit tests
 ```
+
+## SDK Patches
+
+This library patches `kalshi_python_async` to fix:
+
+1. **Missing status values** -- SDK defines 5, API returns 8
+2. **Required vs optional fields** -- Some SDK fields marked required are actually optional
+3. **Orderbook types** -- API returns integers/None, SDK expects strings/lists
+
+Patches apply automatically on import.
 
 ## Requirements
 
 - Python 3.11+
 - Kalshi API credentials
 
-Dependencies: kalshi-python-async, websockets, cryptography, python-dotenv, structlog
+Core: kalshi-python-async, websockets, cryptography, structlog
+
+Dashboard: dash, dash-extensions, plotly, httpx, sortedcontainers
